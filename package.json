@@ -1,7 +1,7 @@
 {
-  "name": "discord-raid-selfbot",
-  "version": "2.0.0",
-  "description": "Powerful Discord selfbot for educational purposes",
+  "name": "multi-account-raid-tool",
+  "version": "1.0.0",
+  "description": "Multi-account auto-join and flood tool",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -9,8 +9,5 @@
   "dependencies": {
     "discord.js-selfbot-v13": "^3.1.4",
     "express": "^4.18.2"
-  },
-  "keywords": ["discord", "selfbot", "raid", "educational"],
-  "author": "",
-  "license": "MIT"
+  }
 }
