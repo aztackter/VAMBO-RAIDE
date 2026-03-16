@@ -17,8 +17,9 @@ app.listen(PORT, () => {
 // Your exact raid message
 const raidMessage = `@everyone @here **RAIDED BY VAMBO**
 
-### NEVER SCAM AGAIN SON😂
-            😯KICK ROCKS😯
+### PUSSY POUNDER 2000
+
+😯OWNERS A PEDO BTW😯
 https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
 
 // Helper function for delay
