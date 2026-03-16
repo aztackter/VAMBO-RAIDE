@@ -1,0 +1,6 @@
+{
+    "serverInvite": "https://discord.gg/YOUR_INVITE_CODE",
+    "floodCount": 100,
+    "delayBetweenRounds": 1500,
+    "delayBetweenLogins": 500
+}
