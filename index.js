@@ -146,13 +146,6 @@ https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
         console.log(`Time: ${minutes}m ${seconds}s`);
         console.log('='.repeat(50));
     }
-
-    // ===== OPTIONAL: STOP SPAM COMMAND =====
-    if (command === 'stop') {
-        console.log('🛑 Stop command received - but cannot interrupt running loop');
-        message.reply('⚠️ Cannot stop mid-spam. The current spam must complete.');
-        // Note: You'd need a more complex implementation with flags to actually stop
-    }
 });
 
 client.login(TOKEN);
