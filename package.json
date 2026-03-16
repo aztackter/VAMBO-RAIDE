@@ -1,7 +1,7 @@
 {
   "name": "multi-account-raid-tool",
-  "version": "1.0.0",
-  "description": "Multi-account auto-join and flood tool",
+  "version": "2.0.0",
+  "description": "Multi-account raid tool with Railway env vars",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
